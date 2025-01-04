@@ -1,28 +1,95 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import random
 
-# Define the questions and categories
-questions = [
-    {"question": "Do you enjoy working with tools or machines?", "category": "Realistic"},
-    {"question": "Do you like fixing or building things?", "category": "Realistic"},
-    {"question": "Do you enjoy outdoor work or physical activity?", "category": "Realistic"},
-    {"question": "Do you like solving puzzles or conducting research?", "category": "Investigative"},
-    {"question": "Do you enjoy analyzing problems or experiments?", "category": "Investigative"},
-    {"question": "Are you curious about how things work?", "category": "Investigative"},
-    {"question": "Do you enjoy creating art, music, or writing?", "category": "Artistic"},
-    {"question": "Do you prefer unstructured, creative activities?", "category": "Artistic"},
-    {"question": "Do you enjoy expressing yourself through design or storytelling?", "category": "Artistic"},
-    {"question": "Do you like helping others or teaching?", "category": "Social"},
-    {"question": "Do you enjoy working with people in a team?", "category": "Social"},
-    {"question": "Do you like resolving conflicts or supporting others?", "category": "Social"},
-    {"question": "Do you enjoy leading or persuading others?", "category": "Enterprising"},
-    {"question": "Do you like setting goals and taking risks to achieve them?", "category": "Enterprising"},
-    {"question": "Do you enjoy selling ideas or products?", "category": "Enterprising"},
-    {"question": "Do you like organizing files or working with data?", "category": "Conventional"},
-    {"question": "Do you enjoy following established procedures?", "category": "Conventional"},
-    {"question": "Do you prefer structured, detail-oriented tasks?", "category": "Conventional"},
-]
+# Define the expanded questions dictionary with 10 questions per category
+questions_dict = {
+    "Realistic": [
+        "Do you enjoy working with tools or machines?",
+        "Do you like fixing or building things?",
+        "Do you enjoy outdoor work or physical activity?",
+        "Do you like working with your hands?",
+        "Do you enjoy operating heavy equipment or machinery?",
+        "Do you like solving physical or mechanical problems?",
+        "Do you enjoy working with plants, animals, or natural resources?",
+        "Do you like performing outdoor repairs or maintenance?",
+        "Do you enjoy using manual tools for construction or repair?",
+        "Do you like exploring nature or the outdoors?",
+    ],
+    "Investigative": [
+        "Do you like solving puzzles or conducting research?",
+        "Do you enjoy analyzing problems or experiments?",
+        "Are you curious about how things work?",
+        "Do you enjoy using science or math to solve problems?",
+        "Do you like investigating facts or theories?",
+        "Do you enjoy reading about scientific discoveries?",
+        "Do you like experimenting with new ideas?",
+        "Do you enjoy studying or observing natural phenomena?",
+        "Do you like using logical thinking to find solutions?",
+        "Do you enjoy problem-solving in technical fields?",
+    ],
+    "Artistic": [
+        "Do you enjoy creating art, music, or writing?",
+        "Do you prefer unstructured, creative activities?",
+        "Do you enjoy expressing yourself through design or storytelling?",
+        "Do you like working on creative projects?",
+        "Do you enjoy drawing, painting, or sculpting?",
+        "Do you like playing a musical instrument or singing?",
+        "Do you enjoy writing poetry, stories, or scripts?",
+        "Do you like performing in plays or musicals?",
+        "Do you enjoy taking photographs or making videos?",
+        "Do you like designing or decorating spaces?",
+    ],
+    "Social": [
+        "Do you like helping others or teaching?",
+        "Do you enjoy working with people in a team?",
+        "Do you like resolving conflicts or supporting others?",
+        "Do you enjoy providing advice or guidance?",
+        "Do you like volunteering or helping in your community?",
+        "Do you enjoy working in health or social services?",
+        "Do you like teaching others new skills?",
+        "Do you enjoy mentoring or coaching others?",
+        "Do you like interacting with people in a meaningful way?",
+        "Do you enjoy working in roles that involve empathy and communication?",
+    ],
+    "Enterprising": [
+        "Do you enjoy leading or persuading others?",
+        "Do you like setting goals and taking risks to achieve them?",
+        "Do you enjoy selling ideas or products?",
+        "Do you like managing projects or people?",
+        "Do you enjoy making decisions and taking responsibility?",
+        "Do you like negotiating or influencing others?",
+        "Do you enjoy brainstorming and implementing new ideas?",
+        "Do you like public speaking or presenting?",
+        "Do you enjoy running a business or starting new ventures?",
+        "Do you like competing to achieve success?",
+    ],
+    "Conventional": [
+        "Do you like organizing files or working with data?",
+        "Do you enjoy following established procedures?",
+        "Do you prefer structured, detail-oriented tasks?",
+        "Do you like maintaining records or databases?",
+        "Do you enjoy working in administrative or clerical roles?",
+        "Do you like managing schedules or calendars?",
+        "Do you enjoy tasks that require accuracy and precision?",
+        "Do you like categorizing or organizing information?",
+        "Do you enjoy working with spreadsheets or financial documents?",
+        "Do you like preparing reports or presentations?",
+    ],
+}
+
+# Initialize session state for selected questions
+if "selected_questions" not in st.session_state:
+    st.session_state.selected_questions = []
+    for category, questions in questions_dict.items():
+        selected_questions = random.sample(questions, 3)  # Select 3 random questions per category
+        for question in selected_questions:
+            st.session_state.selected_questions.append({"question": question, "category": category})
+
+# Shuffle the selected questions only once
+if "shuffled_questions" not in st.session_state:
+    st.session_state.shuffled_questions = random.sample(st.session_state.selected_questions, len(st.session_state.selected_questions))
 
 # Career database
 career_database = {
@@ -34,9 +101,9 @@ career_database = {
     "CRI": ["Accountant", "Auditor", "Administrative Assistant"],
 }
 
-# Initialize session state
+# Initialize other session states
 if "current_question" not in st.session_state:
-    st.session_state.current_question = 0  # Start with the first question
+    st.session_state.current_question = 0
 if "scores" not in st.session_state:
     st.session_state.scores = {"Realistic": 0, "Investigative": 0, "Artistic": 0, "Social": 0, "Enterprising": 0, "Conventional": 0}
 if "answers" not in st.session_state:
@@ -59,15 +126,15 @@ def render_card(question, response=None):
     )
 
 # Main logic
-if st.session_state.current_question < len(questions):
+if st.session_state.current_question < len(st.session_state.shuffled_questions):
     # Render previous questions as cards
     for i, ans in enumerate(st.session_state.answers):
-        render_card(f"Question {i + 1} of {len(questions)}: {questions[i]['question']}", ans)
+        render_card(f"Question {i + 1} of {len(st.session_state.shuffled_questions)}: {st.session_state.shuffled_questions[i]['question']}", ans)
 
     # Render current question
     current_q_index = st.session_state.current_question
-    current_q = questions[current_q_index]
-    st.write(f"### Question {current_q_index + 1} of {len(questions)}")
+    current_q = st.session_state.shuffled_questions[current_q_index]
+    st.write(f"### Question {current_q_index + 1} of {len(st.session_state.shuffled_questions)}")
     render_card(current_q["question"])
 
     # Answer options
@@ -95,7 +162,7 @@ else:
 
     # Sort scores to determine the dominant personality types
     sorted_scores = sorted(st.session_state.scores.items(), key=lambda x: x[1], reverse=True)
-    top_categories = sorted_scores[:3]  # Get the top 3 categories
+    top_categories = sorted_scores[:3]
 
     # Handle case where all scores are zero
     if all(score == 0 for _, score in sorted_scores):
@@ -103,7 +170,6 @@ else:
         st.write("Based on your responses, we could not determine a strong personality match.")
         st.write("Consider answering 'Yes' to questions that resonate with you.")
     else:
-        # Generate Holland Code from initials
         holland_code = "".join([x[0][0] for x in top_categories])
         highest_score = sorted_scores[0][1]
         best_categories = [cat for cat, score in sorted_scores if score == highest_score]
@@ -118,12 +184,12 @@ else:
         else:
             st.write("No exact career matches found. Try exploring careers that fit your top categories!")
 
-    # Visualize scores with progress bars (showing category names and scores)
+    # Visualize scores with progress bars
     st.write("### Category Scores:")
-    max_score = len([q for q in questions if q["category"] in st.session_state.scores])  # Max possible score per category
+    max_score = 3
     for category, score in st.session_state.scores.items():
         st.write(f"**{category}: {score}/{max_score}**")
-        st.progress(score / max_score)  # Normalize progress to the maximum score
+        st.progress(score / max_score)
 
     # Visualize scores with a pie chart
     st.write("### Score Distribution:")
@@ -154,6 +220,8 @@ else:
 
     # Restart button
     if st.button("Restart"):
+        del st.session_state["selected_questions"]
+        del st.session_state["shuffled_questions"]
         del st.session_state["current_question"]
         del st.session_state["scores"]
         del st.session_state["answers"]
