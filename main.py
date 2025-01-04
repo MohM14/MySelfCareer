@@ -96,21 +96,27 @@ else:
     # Sort scores to determine the dominant personality types
     sorted_scores = sorted(st.session_state.scores.items(), key=lambda x: x[1], reverse=True)
     top_categories = sorted_scores[:3]  # Get the top 3 categories
-    holland_code = "".join([x[0][0] for x in top_categories])  # Generate Holland Code from initials
 
-    # Highlight the best category (or categories in case of a tie)
-    highest_score = sorted_scores[0][1]
-    best_categories = [cat for cat, score in sorted_scores if score == highest_score]
-
-    st.write(f"**Your Holland Code is:** `{holland_code}`")
-    st.write(f"**Best Category:** {', '.join(best_categories)} ({highest_score} points)")
-
-    # Match careers based on Holland Code
-    if holland_code in career_database:
-        st.write("### Career Matches:")
-        st.write(", ".join(career_database[holland_code]))
+    # Handle case where all scores are zero
+    if all(score == 0 for _, score in sorted_scores):
+        st.write("It seems you answered 'No' to all questions.")
+        st.write("Based on your responses, we could not determine a strong personality match.")
+        st.write("Consider answering 'Yes' to questions that resonate with you.")
     else:
-        st.write("No exact career matches found. Try exploring careers that fit your top categories!")
+        # Generate Holland Code from initials
+        holland_code = "".join([x[0][0] for x in top_categories])
+        highest_score = sorted_scores[0][1]
+        best_categories = [cat for cat, score in sorted_scores if score == highest_score]
+
+        st.write(f"**Your Holland Code is:** `{holland_code}`")
+        st.write(f"**Best Category:** {', '.join(best_categories)} ({highest_score} points)")
+
+        # Match careers based on Holland Code
+        if holland_code in career_database:
+            st.write("### Career Matches:")
+            st.write(", ".join(career_database[holland_code]))
+        else:
+            st.write("No exact career matches found. Try exploring careers that fit your top categories!")
 
     # Visualize scores with progress bars (showing category names and scores)
     st.write("### Category Scores:")
@@ -121,14 +127,21 @@ else:
 
     # Visualize scores with a pie chart
     st.write("### Score Distribution:")
-    fig, ax = plt.subplots()
-    ax.pie(st.session_state.scores.values(), labels=st.session_state.scores.keys(), autopct="%1.1f%%", startangle=90)
-    ax.axis("equal")  # Equal aspect ratio ensures the pie chart is circular.
-    st.pyplot(fig)
+    if all(score == 0 for score in st.session_state.scores.values()):
+        st.write("No scores to display in the distribution chart. All categories scored zero.")
+    else:
+        fig, ax = plt.subplots()
+        ax.pie(
+            st.session_state.scores.values(),
+            labels=st.session_state.scores.keys(),
+            autopct="%1.1f%%",
+            startangle=90,
+        )
+        ax.axis("equal")  # Equal aspect ratio ensures the pie chart is circular.
+        st.pyplot(fig)
 
     # Prepare results for download
     results_df = pd.DataFrame(list(st.session_state.scores.items()), columns=["Category", "Score"])
-    results_df.loc[len(results_df)] = ["Holland Code", holland_code]  # Add Holland Code as a row
     results_csv = results_df.to_csv(index=False)
 
     # Download button
