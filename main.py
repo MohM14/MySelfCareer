@@ -89,6 +89,16 @@ career_database = {
     "CRI": ["Accountant", "Auditor", "Administrative Assistant"],
 }
 
+# Career database
+career_database = {
+    "RIA": ["Engineer", "Mechanic", "Electrician"],
+    "ISE": ["Scientist", "Biologist", "Data Analyst"],
+    "AES": ["Artist", "Musician", "Writer"],
+    "SEC": ["Teacher", "Counselor", "Nurse"],
+    "ECR": ["Manager", "Salesperson", "Entrepreneur"],
+    "CRI": ["Accountant", "Auditor", "Administrative Assistant"],
+}
+
 # Initialize session state for selected questions
 if "selected_questions" not in st.session_state:
     st.session_state.selected_questions = []
@@ -109,8 +119,8 @@ if "scores" not in st.session_state:
 if "answers" not in st.session_state:
     st.session_state.answers = []
 
-# Function to render a styled question widget
-def render_question_widget(question_text):
+# Function to render a styled question widget with numbering
+def render_question_widget(question_text, question_number):
     st.markdown(
         f"""
         <div style="
@@ -121,7 +131,7 @@ def render_question_widget(question_text):
             margin-bottom: 20px; 
             box-shadow: 3px 3px 10px #dcdcdc;
         ">
-            <h4 style="color: #3333cc; text-align: center;">{question_text}</h4>
+            <h4 style="color: #3333cc; text-align: center;">{question_number}: {question_text}</h4>
         </div>
         """,
         unsafe_allow_html=True,
@@ -133,8 +143,8 @@ if st.session_state.current_question < len(st.session_state.shuffled_questions):
     current_q_index = st.session_state.current_question
     current_q = st.session_state.shuffled_questions[current_q_index]
 
-    # Show the styled question widget
-    render_question_widget(current_q["question"])
+    # Show the styled question widget with numbering
+    render_question_widget(current_q["question"], current_q_index + 1)
 
     # Answer options (Yes/No with emojis)
     response = st.radio(
