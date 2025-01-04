@@ -109,13 +109,32 @@ if "scores" not in st.session_state:
 if "answers" not in st.session_state:
     st.session_state.answers = []
 
+# Function to render a styled question widget
+def render_question_widget(question_text):
+    st.markdown(
+        f"""
+        <div style="
+            background-color: #f0f8ff; 
+            border: 2px solid #b0c4de; 
+            border-radius: 12px; 
+            padding: 20px; 
+            margin-bottom: 20px; 
+            box-shadow: 3px 3px 10px #dcdcdc;
+        ">
+            <h4 style="color: #3333cc; text-align: center;">{question_text}</h4>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 # Main logic
 if st.session_state.current_question < len(st.session_state.shuffled_questions):
     # Render current question
     current_q_index = st.session_state.current_question
     current_q = st.session_state.shuffled_questions[current_q_index]
-    st.write(f"### Question {current_q_index + 1} of {len(st.session_state.shuffled_questions)}")
-    st.write(f"**{current_q['question']}**")
+
+    # Show the styled question widget
+    render_question_widget(current_q["question"])
 
     # Answer options (Yes/No with emojis)
     response = st.radio(
