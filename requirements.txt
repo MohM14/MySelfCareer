@@ -4,4 +4,3 @@ matplotlib
 scikit-learn
 librosa
 streamlit_mic_recorder
-tempfile
