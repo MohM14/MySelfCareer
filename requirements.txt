@@ -3,4 +3,5 @@ pandas
 matplotlib
 scikit-learn
 librosa
+soundfile
 streamlit_mic_recorder
