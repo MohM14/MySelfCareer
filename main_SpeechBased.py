@@ -1,8 +1,9 @@
 import streamlit as st
 import librosa
 import numpy as np
-import sounddevice as sd
-import wavio
+import soundfile as sf
+import tempfile
+from streamlit_mic_recorder import mic_recorder
 
 # Define Holland Code Rules
 def classify_holland_code(features):
@@ -31,7 +32,6 @@ def classify_holland_code(features):
         return "Uncertain", reason
 
 # Speech feature extraction
-# Speech feature extraction (remove @st.cache)
 def extract_features(audio_file):
     y, sr = librosa.load(audio_file, sr=None)
     
@@ -63,30 +63,29 @@ def extract_features(audio_file):
 
     return pitch, speech_rate, intensity, prosody_variation, pause_duration
 
-# Record audio
-def record_audio(duration=5, samplerate=44100, filename="recorded_audio.wav"):
-    st.info("Recording... Speak into the microphone.")
-    audio_data = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=1, dtype='int16')
-    sd.wait()  # Wait for the recording to finish
-    wavio.write(filename, audio_data, samplerate, sampwidth=2)
-    st.success("Recording complete!")
-    return filename
-
 # Streamlit Interface
 st.title("Holland Code Speech Classifier")
 
-# Option to record or upload audio
-record_option = st.radio("How would you like to provide audio?", ("Record your voice", "Upload an audio file"))
+# Mic Recorder Integration
+st.write("### Record Your Voice")
+recorded_audio = mic_recorder(start_prompt="⏺️", stop_prompt="⏹️", key='recorder')
 
-if record_option == "Record your voice":
-    duration = st.slider("Select recording duration (seconds):", min_value=3, max_value=10, value=5)
-    if st.button("Start Recording"):
-        audio_file = record_audio(duration=duration)
-        st.audio(audio_file, format='audio/wav')
-        st.write("Analyzing your speech...")
+if recorded_audio:
+    # Save recorded audio to a temporary file
+    temp_audio_file = tempfile.NamedTemporaryFile(delete=False, suffix=".wav")
+    with open(temp_audio_file.name, "wb") as f:
+        f.write(recorded_audio['bytes'])
+    st.session_state["audio_file"] = temp_audio_file.name
+    st.audio(temp_audio_file.name, format='audio/wav')
+    st.success("Recording saved. Proceed to analysis.")
 
+# Main page for analysis
+st.write("Once you've recorded your voice, analyze it here.")
+
+if "audio_file" in st.session_state and st.session_state["audio_file"]:
+    if st.button("Analyze Holland Code"):
         try:
-            features = extract_features(audio_file)
+            features = extract_features(st.session_state["audio_file"])
             category, reason = classify_holland_code(features)
 
             st.success(f"Your Holland Code category is: {category}")
@@ -98,32 +97,6 @@ if record_option == "Record your voice":
             st.write(f"- Intensity: {features[2]}")
             st.write(f"- Prosody Variation: {features[3]:.2f}")
             st.write(f"- Pause Duration: {features[4]:.2f} seconds")
-
         except Exception as e:
-            st.error(f"Error analyzing the audio file: {e}")
+            st.error(f"Error analyzing the audio: {e}")
 
-elif record_option == "Upload an audio file":
-    uploaded_file = st.file_uploader("Upload your audio file", type=["wav", "mp3"])
-
-    if uploaded_file is not None:
-        st.audio(uploaded_file, format='audio/wav')
-        st.write("Analyzing your speech...")
-
-        try:
-            features = extract_features(uploaded_file)
-            category, reason = classify_holland_code(features)
-
-            st.success(f"Your Holland Code category is: {category}")
-            st.write(f"### Reason: {reason}")
-
-            st.write("### Extracted Features:")
-            st.write(f"- Pitch: {features[0]:.2f} Hz")
-            st.write(f"- Speech Rate: {features[1]:.2f} words/sec")
-            st.write(f"- Intensity: {features[2]}")
-            st.write(f"- Prosody Variation: {features[3]:.2f}")
-            st.write(f"- Pause Duration: {features[4]:.2f} seconds")
-
-        except Exception as e:
-            st.error(f"Error analyzing the audio file: {e}")
-else:
-    st.info("Please provide an audio input to proceed.")
