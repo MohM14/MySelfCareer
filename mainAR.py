@@ -23,18 +23,14 @@ st.markdown(
 
 
 # import streamlit as st
-import sounddevice as sd
-from scipy.io.wavfile import write
+# import streamlit as st
+from streamlit_audio_recorder import audio_recorder
 import speech_recognition as sr
 import librosa
+import numpy as np
+import io
+from scipy.io.wavfile import write
 
-# Function to record audio
-def record_audio(filename="speech.wav", duration=30, fs=44100):
-    st.write("جارٍ التسجيل...")
-    audio = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='int16')
-    sd.wait()  # Wait until recording is finished
-    write(filename, fs, audio)
-    st.write("تم التسجيل بنجاح!")
 
 # Function to transcribe audio
 def transcribe_audio(file_path):
@@ -514,26 +510,23 @@ with tabs[0]:
         #     st.success("تم حفظ النتائج في ملف results.csv")
 # Tab 2: Sound Analysis
 with tabs[1]:
-    st.title("تحديد التخصص بناءً على حديثك عن هواياتك")
-    st.warning("تحدث عن هواياتك لمدة نصف دقيقة")
-    # Record button
-    if st.button("ابدأ التسجيل"):
-        record_audio()
+    st.header("الوضع: عن طريق الصوت")
+    st.warning("اضغط على زر التسجيل ثم تحدث عن هواياتك لمدة دقيقة واحدة:")
 
-    # Analyze button
-    if st.button("تحليل الصوت"):
-        try:
-            # Transcribe audio
-            transcription = transcribe_audio("speech.wav")
-            st.write("النص المستخرج:", transcription)
+    # Record audio using browser
+    audio = audio_recorder()
 
-            # Extract speech features
-            features = extract_speech_features("speech.wav")
-            if features:
-                st.write("السمات الصوتية:", features)
+    if audio is not None:
+        st.audio(audio, format="audio/wav")
+        audio_data = io.BytesIO(audio)
+        audio_data.seek(0)
 
-                # Predict major
-                major = predict_major(transcription, features)
-                st.write(f"التخصص المقترح: {major}")
-        except Exception as e:
-            st.error(f"حدث خطأ أثناء التحليل: {str(e)}")
+        # Transcribe and extract features
+        transcription = transcribe_audio(audio_data)
+        st.write("النص المستخرج:", transcription)
+
+        features = extract_speech_features(audio_data.read(), sample_rate=44100)
+        if features:
+            st.write("السمات الصوتية:", features)
+            major = predict_major(transcription, features)
+            st.write(f"التخصص المقترح: {major}")
