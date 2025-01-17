@@ -21,6 +21,77 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
+# import streamlit as st
+import sounddevice as sd
+from scipy.io.wavfile import write
+import speech_recognition as sr
+import librosa
+
+# Function to record audio
+def record_audio(filename="speech.wav", duration=30, fs=44100):
+    st.write("جارٍ التسجيل...")
+    audio = sd.rec(int(duration * fs), samplerate=fs, channels=1, dtype='int16')
+    sd.wait()  # Wait until recording is finished
+    write(filename, fs, audio)
+    st.write("تم التسجيل بنجاح!")
+
+# Function to transcribe audio
+def transcribe_audio(file_path):
+    recognizer = sr.Recognizer()
+    try:
+        with sr.AudioFile(file_path) as source:
+            audio = recognizer.record(source)
+        return recognizer.recognize_google(audio, language="ar-SA")
+    except sr.UnknownValueError:
+        return "لم أتمكن من فهم الصوت."
+    except sr.RequestError:
+        return "حدث خطأ في خدمة التعرف على الصوت."
+    except Exception as e:
+        return f"خطأ: {str(e)}"
+
+# Function to extract speech features
+def extract_speech_features(file_path):
+    try:
+        y, sr = librosa.load(file_path, sr=None)
+        features = {
+            "tempo": librosa.beat.tempo(y, sr=sr)[0],  # Speech speed
+            "energy": librosa.feature.rms(y=y).mean(),  # Loudness
+            "pitch": librosa.yin(y, fmin=50, fmax=300).mean(),  # Average pitch
+        }
+        return features
+    except Exception as e:
+        st.error(f"خطأ أثناء استخراج خصائص الصوت: {str(e)}")
+        return None
+
+# Rule-based major prediction
+def predict_major(transcription, features):
+    # Rule 1: Keywords in the transcription
+    if any(word in transcription for word in ["رياضة", "نشاط بدني", "الحركة"]):
+        return "واقعي"
+    if any(word in transcription for word in ["تحليل", "بحث", "استنتاج"]):
+        return "تحليلي"
+    if any(word in transcription for word in ["فن", "رسم", "تصميم"]):
+        return "فني"
+    if any(word in transcription for word in ["أصدقاء", "اجتماعي", "تفاعل"]):
+        return "اجتماعي"
+    if any(word in transcription for word in ["ريادة", "مشروع", "قيادة"]):
+        return "ريادي"
+    if any(word in transcription for word in ["إدارة", "تنظيم", "ترتيب"]):
+        return "تقليدي"
+    
+    # Rule 2: Based on speech features
+    if features["tempo"] > 150:
+        return "اجتماعي"
+    if features["energy"] > 0.1:
+        return "ريادي"
+    if features["pitch"] < 100:
+        return "تحليلي"
+    
+    # Default rule
+    return "غير محدد"
+
+
 # تعريف الأسئلة لكل فئة (20 سؤال لكل فئة)
 questions_dict = {
     "واقعي": [
@@ -235,200 +306,234 @@ def save_results_to_csv(questions, answers, scores, filename="results.csv"):
         for category, score in scores.items():
             writer.writerow([category, score])
 
+
+# Streamlit App
+st.title("تحديد التخصص")
+
+# Tabs for modes
+tabs = st.tabs(["عن طريق الأسئلة", "عن طريق الصوت"])
+
+# Tab 1: Questionnaire
+with tabs[0]:
 # اختيار 10 أسئلة عشوائية لكل فئة
-if "selected_questions" not in st.session_state:
-    st.session_state.selected_questions = []
-    for category, questions in questions_dict.items():
-        selected_questions = random.sample(questions, 10)  # اختيار 10 أسئلة عشوائية لكل فئة
-        for question in selected_questions:
-            st.session_state.selected_questions.append({"question": question, "category": category})
-
-# خلط الأسئلة مرة واحدة فقط
-if "shuffled_questions" not in st.session_state:
-    st.session_state.shuffled_questions = random.sample(st.session_state.selected_questions, len(st.session_state.selected_questions))
-
-# تعريف الحالة الأخرى
-if "current_question" not in st.session_state:
-    st.session_state.current_question = 0
-if "scores" not in st.session_state:
-    st.session_state.scores = {"واقعي": 0, "تحليلي": 0, "فني": 0, "اجتماعي": 0, "ريادي": 0, "تقليدي": 0}
-if "answers" not in st.session_state:
-    st.session_state.answers = []
-
-# دالة حفظ النتائج في ملف CSV
-
-# دالة عرض الأسئلة
-if st.session_state.current_question < len(st.session_state.shuffled_questions):
-    current_q_index = st.session_state.current_question
-    current_q = st.session_state.shuffled_questions[current_q_index]
-
-    # عرض السؤال الحالي
-    st.markdown(f"### السؤال {current_q_index + 1}: {current_q['question']}")
-
-    # خيارات الإجابة بمقياس ليكرت
-    response = st.radio(
-        "إجابتك:",
-        options=["1 - لا أوافق بشدة", "2 - لا أوافق", "3 - محايد", "4 - أوافق", "5 - أوافق بشدة"],
-        key=f"q_{current_q_index}",
-    )
-
-    # زر التالي
- 
-    if st.button("التالي"):
-        if response:
-            # تسجيل الإجابة وتحديث النقاط
-            st.session_state.answers.append(response)
-            
-            # تحديث النقاط بناءً على الإجابة
-            if response == "5 - أوافق بشدة":
-                st.session_state.scores[current_q["category"]] += 2
-            elif response == "4 - أوافق":
-                st.session_state.scores[current_q["category"]] += 1
-        
-            # الانتقال إلى السؤال التالي
-            st.session_state.current_question += 1
-            st.experimental_rerun()
-        else:
-            st.warning("يرجى اختيار إجابة قبل المتابعة.")
-else:
-    if all(score == 0 for score in st.session_state.scores.values()):
-        st.write("يبدو أنك اخترت 'لا أوافق بشدة' أو 'غير متأكد' لمعظم الأسئلة.")
-        st.write("بناءً على إجاباتك، لم نتمكن من تحديد توافق قوي مع أي نوع من الشخصيات.")
-        st.write("يرجى التفكير في اختيار 'أوافق' أو 'أوافق بشدة' للأسئلة التي تشعر أنها تعبر عنك.")
-    else:
-    # st.write(st.session_state.scores)
-        st.sidebar.write("### النتائج الأولية:")
-        sorted_scores = sorted(st.session_state.scores.items(), key=lambda x: x[1], reverse=True)
+    if "selected_questions" not in st.session_state:
+        st.session_state.selected_questions = []
+        for category, questions in questions_dict.items():
+            selected_questions = random.sample(questions, 10)  # اختيار 10 أسئلة عشوائية لكل فئة
+            for question in selected_questions:
+                st.session_state.selected_questions.append({"question": question, "category": category})
     
-        categories = [item[0] for item in sorted_scores]
-        scores = [item[1] for item in sorted_scores]
+    # خلط الأسئلة مرة واحدة فقط
+    if "shuffled_questions" not in st.session_state:
+        st.session_state.shuffled_questions = random.sample(st.session_state.selected_questions, len(st.session_state.selected_questions))
     
-            # رسم المخطط البياني
-        # st.sidebar.bar_chart(pd.DataFrame({"الفئات": categories, "النتائج": scores}).set_index("الفئات"))
+    # تعريف الحالة الأخرى
+    if "current_question" not in st.session_state:
+        st.session_state.current_question = 0
+    if "scores" not in st.session_state:
+        st.session_state.scores = {"واقعي": 0, "تحليلي": 0, "فني": 0, "اجتماعي": 0, "ريادي": 0, "تقليدي": 0}
+    if "answers" not in st.session_state:
+        st.session_state.answers = []
     
-        # اقتراح التخصصات بناءً على النتائج
-    # استخراج الفئتين الأعلى
-        top_two_categories = sorted_scores[:2]
-        
-            # عرض النتائج للفئتين الأعلى
-        for i, (category, score) in enumerate(top_two_categories, start=1):
-            st.sidebar.write(f"### الفئة رقم {i}: {category} بنتيجة {score}")
-            if category in specializations_database:
-                st.sidebar.write(" - " + "\n - ".join(specializations_database[category]))
+    # دالة حفظ النتائج في ملف CSV
     
+    # دالة عرض الأسئلة
+    if st.session_state.current_question < len(st.session_state.shuffled_questions):
+        current_q_index = st.session_state.current_question
+        current_q = st.session_state.shuffled_questions[current_q_index]
     
-    st.title("استبيان الأنشطة المفضلة")
-    st.write("اختر الأنشطة التي تستمتع بها من كل فئة.")
-
-
-    if "checkbox_states" not in st.session_state:
-        st.session_state.checkbox_states = {}
-
-    for category, questions in activities.items():
-        # st.subheader(category)
-        for i, question in enumerate(questions):
-            # إنشاء مفتاح فريد لكل سؤال
-            checkbox_key = f"{category}_{i}"
-
-            # عرض checkbox والحصول على حالته
-            is_checked = st.checkbox(question, key=checkbox_key)
-
-            # منطق تعديل النقاط بناءً على تغيير الحالة
-            previous_state = st.session_state.checkbox_states.get(checkbox_key, False)
-            if is_checked and not previous_state:
-                st.session_state.scores[category] += 1
-            elif not is_checked and previous_state:
-                st.session_state.scores[category] -= 1
-
-            # تحديث الحالة السابقة
-            st.session_state.checkbox_states[checkbox_key] = is_checked
+        # عرض السؤال الحالي
+        st.markdown(f"### السؤال {current_q_index + 1}: {current_q['question']}")
+    
+        # خيارات الإجابة بمقياس ليكرت
+        response = st.radio(
+            "إجابتك:",
+            options=["1 - لا أوافق بشدة", "2 - لا أوافق", "3 - محايد", "4 - أوافق", "5 - أوافق بشدة"],
+            key=f"q_{current_q_index}",
+        )
+    
+        # زر التالي
+     
+        if st.button("التالي"):
+            if response:
+                # تسجيل الإجابة وتحديث النقاط
+                st.session_state.answers.append(response)
                 
-    
-    
-    # أسئلة المواد الدراسية
-    # استبيان المواد الدراسية المفضلة
-    # استبيان المواد الدراسية المفضلة
-    # st.session_state.setdefault("subject_states", {})
-    if "subject_states" not in st.session_state:
-        st.session_state.subject_states = {}
-
-
-    st.write("### اختر المواد المفضلة لديك:")
-    subjects = [
-        "التفكير الناقد",
-        "الدراسات الإسلامية",
-        "الدراسات الاجتماعية",
-        "الرياضيات",
-        "العلوم",
-        "القرآن الكريم",
-        "اللغة الإنجليزية",
-        "اللغة العربية",
-        "المهارات الرقمية",
-    ]
-
-    for subject in subjects:
-        subject_key = f"subject_{subject}"
-        is_checked = st.checkbox(subject, key=subject_key)
-        previous_state = st.session_state.subject_states.get(subject_key, False)
-        if is_checked and not previous_state:
-            if subject in ["المهارات الرقمية", "العلوم"]:
-                st.session_state.scores["واقعي"] += 1
-            if subject in ["الرياضيات", "العلوم"]:
-                st.session_state.scores["تحليلي"] += 1
-            if subject in ["الفنون", "التربية الفنية"]:
-                st.session_state.scores["فني"] += 1
-            if subject in ["الدراسات الاجتماعية", "الدراسات الإسلامية", "القرآن الكريم"]:
-                st.session_state.scores["اجتماعي"] += 1
-            if subject in ["التفكير الناقد"]:
-                st.session_state.scores["ريادي"] += 1
-            if subject in ["اللغة العربية", "اللغة الإنجليزية"]:
-                st.session_state.scores["تقليدي"] += 1
-        elif not is_checked and previous_state:
-            if subject in ["المهارات الرقمية", "العلوم"]:
-                st.session_state.scores["واقعي"] -= 1
-            if subject in ["الرياضيات", "العلوم"]:
-                st.session_state.scores["تحليلي"] -= 1
-            if subject in ["الفنون", "التربية الفنية"]:
-                st.session_state.scores["فني"] -= 1
-            if subject in ["الدراسات الاجتماعية", "الدراسات الإسلامية", "القرآن الكريم"]:
-                st.session_state.scores["اجتماعي"] -= 1
-            if subject in ["التفكير الناقد"]:
-                st.session_state.scores["ريادي"] -= 1
-            if subject in ["اللغة العربية", "اللغة الإنجليزية"]:
-                st.session_state.scores["تقليدي"] -= 1
-        st.session_state.subject_states[subject_key] = is_checked
-
-        # تحديث الحالة السابقة
-        st.session_state.subject_states[subject_key] = is_checked
-  
-  
-  # عرض النتائج النهائية بشكل بياني
-    if st.button("تحديث النتيجة"):
+                # تحديث النقاط بناءً على الإجابة
+                if response == "5 - أوافق بشدة":
+                    st.session_state.scores[current_q["category"]] += 2
+                elif response == "4 - أوافق":
+                    st.session_state.scores[current_q["category"]] += 1
+            
+                # الانتقال إلى السؤال التالي
+                st.session_state.current_question += 1
+                st.experimental_rerun()
+            else:
+                st.warning("يرجى اختيار إجابة قبل المتابعة.")
+    else:
         if all(score == 0 for score in st.session_state.scores.values()):
             st.write("يبدو أنك اخترت 'لا أوافق بشدة' أو 'غير متأكد' لمعظم الأسئلة.")
             st.write("بناءً على إجاباتك، لم نتمكن من تحديد توافق قوي مع أي نوع من الشخصيات.")
             st.write("يرجى التفكير في اختيار 'أوافق' أو 'أوافق بشدة' للأسئلة التي تشعر أنها تعبر عنك.")
         else:
-            st.write("### النتائج النهائية:")
+        # st.write(st.session_state.scores)
+            st.sidebar.write("### النتائج الأولية:")
             sorted_scores = sorted(st.session_state.scores.items(), key=lambda x: x[1], reverse=True)
         
             categories = [item[0] for item in sorted_scores]
             scores = [item[1] for item in sorted_scores]
         
-            # رسم المخطط البياني
-            st.bar_chart(pd.DataFrame({"الفئات": categories, "النتائج": scores}).set_index("الفئات"))
-    
-        # اقتراح التخصصات بناءً على النتائج
-    # استخراج الفئتين الأعلى
+                # رسم المخطط البياني
+            # st.sidebar.bar_chart(pd.DataFrame({"الفئات": categories, "النتائج": scores}).set_index("الفئات"))
+        
+            # اقتراح التخصصات بناءً على النتائج
+        # استخراج الفئتين الأعلى
             top_two_categories = sorted_scores[:2]
             
-            # عرض النتائج للفئتين الأعلى
+                # عرض النتائج للفئتين الأعلى
             for i, (category, score) in enumerate(top_two_categories, start=1):
-                st.write(f"### الفئة رقم {i}: {category} بنتيجة {score}")
+                st.sidebar.write(f"### الفئة رقم {i}: {category} بنتيجة {score}")
                 if category in specializations_database:
-                    st.write(" - " + "\n - ".join(specializations_database[category]))
+                    st.sidebar.write(" - " + "\n - ".join(specializations_database[category]))
+        
+        
+        st.title("استبيان الأنشطة المفضلة")
+        st.write("اختر الأنشطة التي تستمتع بها من كل فئة.")
+    
+    
+        if "checkbox_states" not in st.session_state:
+            st.session_state.checkbox_states = {}
+    
+        for category, questions in activities.items():
+            # st.subheader(category)
+            for i, question in enumerate(questions):
+                # إنشاء مفتاح فريد لكل سؤال
+                checkbox_key = f"{category}_{i}"
+    
+                # عرض checkbox والحصول على حالته
+                is_checked = st.checkbox(question, key=checkbox_key)
+    
+                # منطق تعديل النقاط بناءً على تغيير الحالة
+                previous_state = st.session_state.checkbox_states.get(checkbox_key, False)
+                if is_checked and not previous_state:
+                    st.session_state.scores[category] += 1
+                elif not is_checked and previous_state:
+                    st.session_state.scores[category] -= 1
+    
+                # تحديث الحالة السابقة
+                st.session_state.checkbox_states[checkbox_key] = is_checked
+                    
+        
+        
+        # أسئلة المواد الدراسية
+        # استبيان المواد الدراسية المفضلة
+        # استبيان المواد الدراسية المفضلة
+        # st.session_state.setdefault("subject_states", {})
+        if "subject_states" not in st.session_state:
+            st.session_state.subject_states = {}
+    
+    
+        st.write("### اختر المواد المفضلة لديك:")
+        subjects = [
+            "التفكير الناقد",
+            "الدراسات الإسلامية",
+            "الدراسات الاجتماعية",
+            "الرياضيات",
+            "العلوم",
+            "القرآن الكريم",
+            "اللغة الإنجليزية",
+            "اللغة العربية",
+            "المهارات الرقمية",
+        ]
+    
+        for subject in subjects:
+            subject_key = f"subject_{subject}"
+            is_checked = st.checkbox(subject, key=subject_key)
+            previous_state = st.session_state.subject_states.get(subject_key, False)
+            if is_checked and not previous_state:
+                if subject in ["المهارات الرقمية", "العلوم"]:
+                    st.session_state.scores["واقعي"] += 1
+                if subject in ["الرياضيات", "العلوم"]:
+                    st.session_state.scores["تحليلي"] += 1
+                if subject in ["الفنون", "التربية الفنية"]:
+                    st.session_state.scores["فني"] += 1
+                if subject in ["الدراسات الاجتماعية", "الدراسات الإسلامية", "القرآن الكريم"]:
+                    st.session_state.scores["اجتماعي"] += 1
+                if subject in ["التفكير الناقد"]:
+                    st.session_state.scores["ريادي"] += 1
+                if subject in ["اللغة العربية", "اللغة الإنجليزية"]:
+                    st.session_state.scores["تقليدي"] += 1
+            elif not is_checked and previous_state:
+                if subject in ["المهارات الرقمية", "العلوم"]:
+                    st.session_state.scores["واقعي"] -= 1
+                if subject in ["الرياضيات", "العلوم"]:
+                    st.session_state.scores["تحليلي"] -= 1
+                if subject in ["الفنون", "التربية الفنية"]:
+                    st.session_state.scores["فني"] -= 1
+                if subject in ["الدراسات الاجتماعية", "الدراسات الإسلامية", "القرآن الكريم"]:
+                    st.session_state.scores["اجتماعي"] -= 1
+                if subject in ["التفكير الناقد"]:
+                    st.session_state.scores["ريادي"] -= 1
+                if subject in ["اللغة العربية", "اللغة الإنجليزية"]:
+                    st.session_state.scores["تقليدي"] -= 1
+            st.session_state.subject_states[subject_key] = is_checked
+    
+            # تحديث الحالة السابقة
+            st.session_state.subject_states[subject_key] = is_checked
+      
+      
+      # عرض النتائج النهائية بشكل بياني
+        if st.button("تحديث النتيجة"):
+            if all(score == 0 for score in st.session_state.scores.values()):
+                st.write("يبدو أنك اخترت 'لا أوافق بشدة' أو 'غير متأكد' لمعظم الأسئلة.")
+                st.write("بناءً على إجاباتك، لم نتمكن من تحديد توافق قوي مع أي نوع من الشخصيات.")
+                st.write("يرجى التفكير في اختيار 'أوافق' أو 'أوافق بشدة' للأسئلة التي تشعر أنها تعبر عنك.")
+            else:
+                st.write("### النتائج النهائية:")
+                sorted_scores = sorted(st.session_state.scores.items(), key=lambda x: x[1], reverse=True)
+            
+                categories = [item[0] for item in sorted_scores]
+                scores = [item[1] for item in sorted_scores]
+            
+                # رسم المخطط البياني
+                st.bar_chart(pd.DataFrame({"الفئات": categories, "النتائج": scores}).set_index("الفئات"))
+        
+            # اقتراح التخصصات بناءً على النتائج
+        # استخراج الفئتين الأعلى
+                top_two_categories = sorted_scores[:2]
+                
+                # عرض النتائج للفئتين الأعلى
+                for i, (category, score) in enumerate(top_two_categories, start=1):
+                    st.write(f"### الفئة رقم {i}: {category} بنتيجة {score}")
+                    if category in specializations_database:
+                        st.write(" - " + "\n - ".join(specializations_database[category]))
+    
+        # حفظ النتائج في ملف CSV
+        # if st.button("حفظ النتائج"):
+        #     save_results_to_csv(st.session_state.selected_questions, st.session_state.answers, st.session_state.scores)
+        #     st.success("تم حفظ النتائج في ملف results.csv")
+# Tab 2: Sound Analysis
+with tabs[1]:
+    st.title("تحديد التخصص بناءً على حديثك عن هواياتك")
+    st.warning("تحدث عن هواياتك لمدة نصف دقيقة")
+    # Record button
+    if st.button("ابدأ التسجيل"):
+        record_audio()
 
-    # حفظ النتائج في ملف CSV
-    # if st.button("حفظ النتائج"):
-    #     save_results_to_csv(st.session_state.selected_questions, st.session_state.answers, st.session_state.scores)
-    #     st.success("تم حفظ النتائج في ملف results.csv")
+    # Analyze button
+    if st.button("تحليل الصوت"):
+        try:
+            # Transcribe audio
+            transcription = transcribe_audio("speech.wav")
+            st.write("النص المستخرج:", transcription)
+
+            # Extract speech features
+            features = extract_speech_features("speech.wav")
+            if features:
+                st.write("السمات الصوتية:", features)
+
+                # Predict major
+                major = predict_major(transcription, features)
+                st.write(f"التخصص المقترح: {major}")
+        except Exception as e:
+            st.error(f"حدث خطأ أثناء التحليل: {str(e)}")
