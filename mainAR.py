@@ -21,22 +21,41 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+from streamlit_webrtc import webrtc_streamer, AudioProcessorBase, WebRtcMode
+import numpy as np
+import pydub
+import speech_recognition as sr
+import librosa
+import io
 
 # import streamlit as st
 # import streamlit as st
-from streamlit_audio_recorder import audio_recorder
-import speech_recognition as sr
-import librosa
-import numpy as np
-import io
-from scipy.io.wavfile import write
+# Define a custom audio processor to capture audio
+class AudioProcessor(AudioProcessorBase):
+    def __init__(self):
+        self.audio_data = None
+
+    def recv_audio(self, frames):
+        # Convert audio frames to numpy array
+        audio_data = np.frombuffer(frames.to_ndarray(), np.int16)
+        self.audio_data = pydub.AudioSegment(
+            audio_data.tobytes(),
+            frame_rate=frames.sample_rate,
+            sample_width=frames.sample_width,
+            channels=frames.channels,
+        )
+        return frames
 
 
 # Function to transcribe audio
-def transcribe_audio(file_path):
+def transcribe_audio(audio_segment):
     recognizer = sr.Recognizer()
+    audio_data = io.BytesIO()
+    audio_segment.export(audio_data, format="wav")
+    audio_data.seek(0)
+
     try:
-        with sr.AudioFile(file_path) as source:
+        with sr.AudioFile(audio_data) as source:
             audio = recognizer.record(source)
         return recognizer.recognize_google(audio, language="ar-SA")
     except sr.UnknownValueError:
@@ -46,23 +65,25 @@ def transcribe_audio(file_path):
     except Exception as e:
         return f"خطأ: {str(e)}"
 
+
 # Function to extract speech features
-def extract_speech_features(file_path):
+def extract_speech_features(audio_segment):
+    audio_data = np.array(audio_segment.get_array_of_samples(), dtype=np.float32) / 32768.0
+    sample_rate = audio_segment.frame_rate
     try:
-        y, sr = librosa.load(file_path, sr=None)
         features = {
-            "tempo": librosa.beat.tempo(y, sr=sr)[0],  # Speech speed
-            "energy": librosa.feature.rms(y=y).mean(),  # Loudness
-            "pitch": librosa.yin(y, fmin=50, fmax=300).mean(),  # Average pitch
+            "tempo": librosa.beat.tempo(audio_data, sr=sample_rate)[0],  # Speech speed
+            "energy": librosa.feature.rms(y=audio_data).mean(),  # Loudness
+            "pitch": librosa.yin(audio_data, fmin=50, fmax=300).mean(),  # Average pitch
         }
         return features
     except Exception as e:
         st.error(f"خطأ أثناء استخراج خصائص الصوت: {str(e)}")
         return None
 
-# Rule-based major prediction
+
+# Function to predict the major based on transcription and features
 def predict_major(transcription, features):
-    # Rule 1: Keywords in the transcription
     if any(word in transcription for word in ["رياضة", "نشاط بدني", "الحركة"]):
         return "واقعي"
     if any(word in transcription for word in ["تحليل", "بحث", "استنتاج"]):
@@ -75,7 +96,7 @@ def predict_major(transcription, features):
         return "ريادي"
     if any(word in transcription for word in ["إدارة", "تنظيم", "ترتيب"]):
         return "تقليدي"
-    
+
     # Rule 2: Based on speech features
     if features["tempo"] > 150:
         return "اجتماعي"
@@ -83,9 +104,10 @@ def predict_major(transcription, features):
         return "ريادي"
     if features["pitch"] < 100:
         return "تحليلي"
-    
+
     # Default rule
     return "غير محدد"
+
 
 
 # تعريف الأسئلة لكل فئة (20 سؤال لكل فئة)
@@ -511,22 +533,27 @@ with tabs[0]:
 # Tab 2: Sound Analysis
 with tabs[1]:
     st.header("الوضع: عن طريق الصوت")
-    st.warning("اضغط على زر التسجيل ثم تحدث عن هواياتك لمدة دقيقة واحدة:")
+    st.write("اضغط على زر التسجيل ثم تحدث عن هواياتك:")
 
-    # Record audio using browser
-    audio = audio_recorder()
+    webrtc_ctx = webrtc_streamer(
+        key="audio",
+        mode=WebRtcMode.SENDRECV,
+        media_stream_constraints={"audio": True, "video": False},
+        audio_processor_factory=AudioProcessor,
+    )
 
-    if audio is not None:
-        st.audio(audio, format="audio/wav")
-        audio_data = io.BytesIO(audio)
-        audio_data.seek(0)
+    if webrtc_ctx.state.playing and webrtc_ctx.audio_processor:
+        if st.button("تحليل الصوت"):
+            audio_processor = webrtc_ctx.audio_processor
+            audio_segment = audio_processor.audio_data
 
-        # Transcribe and extract features
-        transcription = transcribe_audio(audio_data)
-        st.write("النص المستخرج:", transcription)
+            if audio_segment is not None:
+                transcription = transcribe_audio(audio_segment)
+                st.write("النص المستخرج:", transcription)
 
-        features = extract_speech_features(audio_data.read(), sample_rate=44100)
-        if features:
-            st.write("السمات الصوتية:", features)
-            major = predict_major(transcription, features)
-            st.write(f"التخصص المقترح: {major}")
+                features = extract_speech_features(audio_segment)
+                if features:
+                    st.write("السمات الصوتية:", features)
+
+                    major = predict_major(transcription, features)
+                    st.write(f"التخصص المقترح: {major}")
