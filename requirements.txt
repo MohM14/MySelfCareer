@@ -7,4 +7,4 @@ streamlit_mic_recorder
 praat-parselmouth
 plotly-express
 SpeechRecognition
-sounddevice
+audio-recorder-streamlit
