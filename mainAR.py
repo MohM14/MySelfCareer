@@ -159,7 +159,6 @@ questions_dict = {
 
 
 
-
 # الأسئلة والأنشطة
 activities = {
     "واقعي": [
@@ -280,18 +279,43 @@ if st.session_state.current_question < len(st.session_state.shuffled_questions):
             # تسجيل الإجابة وتحديث النقاط
             st.session_state.answers.append(response)
             
-            if response in ["4 - أوافق", "5 - أوافق بشدة"]:
-                
+            # تحديث النقاط بناءً على الإجابة
+            if response == "5 - أوافق بشدة":
+                st.session_state.scores[current_q["category"]] += 2
+            elif response == "4 - أوافق":
                 st.session_state.scores[current_q["category"]] += 1
-
+        
             # الانتقال إلى السؤال التالي
             st.session_state.current_question += 1
             st.experimental_rerun()
         else:
             st.warning("يرجى اختيار إجابة قبل المتابعة.")
 else:
-    
+    if all(score == 0 for score in st.session_state.scores.values()):
+        st.write("يبدو أنك اخترت 'لا أوافق بشدة' أو 'غير متأكد' لمعظم الأسئلة.")
+        st.write("بناءً على إجاباتك، لم نتمكن من تحديد توافق قوي مع أي نوع من الشخصيات.")
+        st.write("يرجى التفكير في اختيار 'أوافق' أو 'أوافق بشدة' للأسئلة التي تشعر أنها تعبر عنك.")
+    else:
     # st.write(st.session_state.scores)
+        st.sidebar.write("### النتائج الأولية:")
+        sorted_scores = sorted(st.session_state.scores.items(), key=lambda x: x[1], reverse=True)
+    
+        categories = [item[0] for item in sorted_scores]
+        scores = [item[1] for item in sorted_scores]
+    
+            # رسم المخطط البياني
+        # st.sidebar.bar_chart(pd.DataFrame({"الفئات": categories, "النتائج": scores}).set_index("الفئات"))
+    
+        # اقتراح التخصصات بناءً على النتائج
+    # استخراج الفئتين الأعلى
+        top_two_categories = sorted_scores[:2]
+        
+            # عرض النتائج للفئتين الأعلى
+        for i, (category, score) in enumerate(top_two_categories, start=1):
+            st.sidebar.write(f"### الفئة رقم {i}: {category} بنتيجة {score}")
+            if category in specializations_database:
+                st.sidebar.write(" - " + "\n - ".join(specializations_database[category]))
+    
     
     st.title("استبيان الأنشطة المفضلة")
     st.write("اختر الأنشطة التي تستمتع بها من كل فئة.")
@@ -379,22 +403,30 @@ else:
   
   
   # عرض النتائج النهائية بشكل بياني
-    if st.button("إظهار النتيجة"):
-  
-        st.write("### النتائج النهائية:")
-        sorted_scores = sorted(st.session_state.scores.items(), key=lambda x: x[1], reverse=True)
+    if st.button("تحديث النتيجة"):
+        if all(score == 0 for score in st.session_state.scores.values()):
+            st.write("يبدو أنك اخترت 'لا أوافق بشدة' أو 'غير متأكد' لمعظم الأسئلة.")
+            st.write("بناءً على إجاباتك، لم نتمكن من تحديد توافق قوي مع أي نوع من الشخصيات.")
+            st.write("يرجى التفكير في اختيار 'أوافق' أو 'أوافق بشدة' للأسئلة التي تشعر أنها تعبر عنك.")
+        else:
+            st.write("### النتائج النهائية:")
+            sorted_scores = sorted(st.session_state.scores.items(), key=lambda x: x[1], reverse=True)
+        
+            categories = [item[0] for item in sorted_scores]
+            scores = [item[1] for item in sorted_scores]
+        
+            # رسم المخطط البياني
+            st.bar_chart(pd.DataFrame({"الفئات": categories, "النتائج": scores}).set_index("الفئات"))
     
-        categories = [item[0] for item in sorted_scores]
-        scores = [item[1] for item in sorted_scores]
-    
-        # رسم المخطط البياني
-        st.bar_chart(pd.DataFrame({"الفئات": categories, "النتائج": scores}).set_index("الفئات"))
-
-    # اقتراح التخصصات بناءً على النتائج
-        top_category = sorted_scores[0][0]
-        st.write(f"### بناءً على تحليل النتائج، ننصحك بالتخصصات التالية لفئة {top_category}:")
-        if top_category in specializations_database:
-            st.write(" - " + "\n - ".join(specializations_database[top_category]))
+        # اقتراح التخصصات بناءً على النتائج
+    # استخراج الفئتين الأعلى
+            top_two_categories = sorted_scores[:2]
+            
+            # عرض النتائج للفئتين الأعلى
+            for i, (category, score) in enumerate(top_two_categories, start=1):
+                st.write(f"### الفئة رقم {i}: {category} بنتيجة {score}")
+                if category in specializations_database:
+                    st.write(" - " + "\n - ".join(specializations_database[category]))
 
     # حفظ النتائج في ملف CSV
     # if st.button("حفظ النتائج"):
