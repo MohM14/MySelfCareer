@@ -7,4 +7,10 @@ streamlit_mic_recorder
 praat-parselmouth
 plotly-express
 SpeechRecognition
-audio-recorder-streamlit
+streamlit
+streamlit-webrtc
+av
+pydub
+librosa
+numpy
+speechrecognition
