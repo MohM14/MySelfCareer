@@ -14,3 +14,4 @@ pydub
 librosa
 numpy
 speechrecognition
+openai
