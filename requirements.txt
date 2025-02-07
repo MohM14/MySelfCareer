@@ -14,4 +14,4 @@ pydub
 librosa
 numpy
 speechrecognition
-openai
+openai==0.28
