@@ -15,6 +15,18 @@ questions_df = pd.read_csv("questions_dict.csv")
 activities_df = pd.read_csv("activities.csv")
 subjects_df = pd.read_csv("subject_category_mapping.csv")
 
+
+USOC_file = 'USOC.xlsx'  # ضع مسار الملف هنا
+# دالة لتحميل البيانات مرة واحدة مع التخزين المؤقت
+@st.cache_data
+def load_data(USOC_file):
+    # تحميل البيانات عند رفع الملف
+    if USOC_file is not None:
+        df = pd.read_excel(USOC_file)
+        return df
+    return None
+
+
 # English mapping for categories
 category_english_mapping = {
     "واقعي": "Realistic",
@@ -45,6 +57,39 @@ if "selected_subjects" not in st.session_state:
     st.session_state.selected_subjects = []
 if "sampled_activities" not in st.session_state:
     st.session_state.sampled_activities = None
+
+
+# دالة لعرض البيانات بناءً على CODE
+def display_job_details(code, df):
+    # تصفية البيانات حسب CODE
+    filtered_df = df[df['CODE'] == code]
+    
+    if filtered_df.empty:
+        st.write("لا توجد مهن مرتبطة بهذا الكود.")
+        return
+    
+    # عرض البيانات في DataFrame
+    st.write(f"البيانات للمهن المرتبطة بالكود: {code}")
+    st.dataframe(filtered_df)
+
+    # استخراج التخصصات المقترحة للطالب
+    st.write("### التخصصات المقترحة للطالب:")
+    all_fields = set()  # استخدام set لإزالة التكرار
+    
+    # استخراج القيم من الأعمدة "المجال التعليمي 1", "المجال التعليمي 2", "المجال التعليمي 3"
+    for idx, row in filtered_df.iterrows():
+        for i in range(1, 4):
+            field = row.get(f"المجال التعليمي {i}")
+            if pd.notna(field):
+                all_fields.add(field)  # إضافة التخصص إلى set (يتم إزالة التكرار تلقائيًا)
+    
+    # دمج التخصصات في نص واحد
+    if all_fields:
+        fields_text = ", ".join(sorted(all_fields))  # دمج التخصصات في نص واحد مفصول بفواصل
+        st.write(f"التخصصات المقترحة: {fields_text}")
+    else:
+        st.write("لا توجد تخصصات مقترحة.")
+    return fields_text
 
 # Helper Functions
 def get_random_questions(df, n=10):
@@ -120,13 +165,17 @@ if st.session_state.step == 2:
         else:
             st.error("يرجى اختيار نشاط واحد على الأقل قبل المتابعة.")
 
+
 # Step 3: Subjects
 if st.session_state.step == 3:
     st.header("الجزء الثالث: المواد الدراسية")
     st.write("يرجى اختيار المواد التي تفضلها:")
 
+    # Remove duplicates from the subjects to show only unique ones
+    unique_subjects_df = subjects_df.drop_duplicates(subset="Subject")
+
     selected_subject_checkboxes = []
-    for _, row in subjects_df.iterrows():
+    for _, row in unique_subjects_df.iterrows():
         selected_subject_checkboxes.append(
             st.checkbox(row["Subject"], key=f"subject_{row.name}")
         )
@@ -134,11 +183,15 @@ if st.session_state.step == 3:
     if st.button("عرض النتيجة"):
         for idx, selected in enumerate(selected_subject_checkboxes):
             if selected:
-                subject = subjects_df.iloc[idx]["Subject"]
+                subject = unique_subjects_df.iloc[idx]["Subject"]
                 if subject not in st.session_state.selected_subjects:
                     st.session_state.selected_subjects.append(subject)
-                    category = subjects_df.iloc[idx]["Category"]
-                    st.session_state.scores[category] += 1
+                    
+                    # Get the categories associated with the subject
+                    categories = subjects_df[subjects_df["Subject"] == subject]["Category"]
+                    for category in categories:
+                        st.session_state.scores[category] += 1  # Update the score for the category
+
         st.session_state.step = 4
         st.experimental_rerun()
 
@@ -172,6 +225,11 @@ if st.session_state.step == 4:
     top_two = sorted_scores[:2]
     code = f"{category_english_mapping[top_two[0][0]][0]}{category_english_mapping[top_two[1][0]][0]}"
     st.subheader(f"Personality Code: {code}")
+    df_USOC = load_data(USOC_file)
+
+    st.session_state.selected_majors =display_job_details(code,df_USOC)
+
+    
 
     # # Interpretation
     # if st.button("تفسير النتيجة"):
@@ -197,7 +255,7 @@ if st.session_state.step == 4:
     #                     st.write(f"- {subject}")
 
     # Academic and Career Guidance
-    if st.button("عرض الإرشاد الأكاديمي والمهني"):
+    if st.button("عرض الإرشاد الذكي"):
         personality_code = code
         selected_questions = [
             row["Question"]
@@ -205,7 +263,9 @@ if st.session_state.step == 4:
             if st.session_state.get(f"response_{idx}") in ["أوافق", "أوافق بشدة"]
         ]
         selected_activities = st.session_state.selected_activities
-        selected_subjects = st.session_state.selected_subjects
+        selected_subjects   = st.session_state.selected_subjects
+        selected_majors     = st.session_state.selected_majors
+        
 
         # Prompt for ChatGPT
         prompt = f"""
@@ -219,9 +279,14 @@ if st.session_state.step == 4:
         - المواد الدراسية التي اختارها:
         {', '.join(selected_subjects)}
 
-        قدم نصيحة أكاديمية ومهنية للطالب، تشمل:
-1. الدورات الاحترافية التي يستحين ان الطالب يأخذها    
-            2. نصائح للنجاح في هذه المجالات.
+        - التخصصات المتقرحة للطالب:
+        {', '.join(selected_majors)}
+
+
+        قدم ارشاد للطالب، تشمل:
+            تفسير لماذا تم اختيار الكود الشخصي له
+            ترتيب للتخصصات المقترحة للطالب بالنسبة المئوية بناء على تفضيلاته واجاباته
+             نصائح للنجاح في هذا  المجال.
        حاول الاجابة لاتتعدي 500 توكنز 
     
         """
