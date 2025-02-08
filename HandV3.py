@@ -62,7 +62,8 @@ if "sampled_activities" not in st.session_state:
 # دالة لعرض البيانات بناءً على CODE
 def display_job_details(code, df):
     # تصفية البيانات حسب CODE
-    filtered_df = df[df['CODE'] == code]
+    sorted_code = "".join(sorted(code))  # ترتيب الحروف في الكود
+    filtered_df = df[df['CODE'].apply(lambda x: "".join(sorted(str(x))) == sorted_code)]
     
     if filtered_df.empty:
         st.write("لا توجد مهن مرتبطة بهذا الكود.")
