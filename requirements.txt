@@ -16,3 +16,4 @@ numpy
 speechrecognition
 openai==0.28
 audio-recorder-streamlit
+openpyxl
