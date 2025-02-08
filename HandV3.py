@@ -89,6 +89,7 @@ def display_job_details(code, df):
         st.write(f"التخصصات المقترحة: {fields_text}")
     else:
         st.write("لا توجد تخصصات مقترحة.")
+        fields_text=""
     return fields_text
 
 # Helper Functions
