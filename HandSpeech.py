@@ -249,11 +249,11 @@ def main():
             # Generate the prompt and store it in session state
             prompt = generate_prompt(recognized_text, basic_features, quality_features, speaking_rate)
             st.session_state.prompt = prompt  # Save the prompt for later use
-            st.subheader("المطالبة الموجهة لـ GPT-4")
-            st.code(prompt, language="markdown")
+            #st.subheader("المطالبة الموجهة لـ GPT-4")
+            #st.code(prompt, language="markdown")
         
         # Step 3: Use the stored prompt for sending to OpenAI
-        if "prompt" in st.session_state and st.button("إرسال الطلب إلى OpenAI"):
+        if "prompt" in st.session_state and st.button("  اكتشف شخصيتي "):
             try:
                 openai.api_key = st.secrets["openai"]["api_key"]
                 # Retrieve prompt from session state
