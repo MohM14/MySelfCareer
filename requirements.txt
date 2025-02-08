@@ -15,3 +15,4 @@ librosa
 numpy
 speechrecognition
 openai==0.28
+audio_recorder_streamlit
