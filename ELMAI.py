@@ -145,7 +145,7 @@ if st.button("التالي", key="next_button", help="انتقل للسؤال ا
             st.session_state.question_index += 1
             st.experimental_rerun()  # Rerun to display the next question
         else:
-            st.success("اكتمل الاختبار!")
+            st.success("اكتمل الاختبار، انتظر النتيجة!")
             # Build mistake responses for analysis (only questions answered incorrectly)
             mistake_responses = []
             for question in questions:
