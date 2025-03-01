@@ -5,7 +5,7 @@ openai.api_key = st.secrets["openai"]["api_key"]
 import random
 
 
-# حقن CSS للتنسيق (من اليمين لليسار، واستخدام درجات الأزرق والرمادي، وخط Sakkal Majalla)
+# حقن CSS للتنسيق (من اليمين لليسار، وألوان وتصميم متناسق)
 st.markdown(
     """
     <style>
@@ -15,8 +15,8 @@ st.markdown(
     }
     body {
         direction: rtl;
-        background-color: #F8F9FA; /* خلفية فاتحة */
-        color: #333; /* لون نص داكن */
+        background-color: #F8F9FA;
+        color: #333;
         font-family: 'Sakkal Majalla', sans-serif;
         margin: 0;
         padding: 0;
@@ -40,7 +40,6 @@ st.markdown(
     }
     .hero-container {
         background-color: #F8F9FA;
-        position: relative;
         padding: 2rem;
         margin-bottom: 1rem;
     }
@@ -63,25 +62,7 @@ st.markdown(
         color: #444;
         margin-bottom: 1rem;
     }
-    .hero-btn {
-        background-color: #00A1E0;
-        color: #fff;
-        border: none;
-        border-radius: 8px;
-        padding: 0.75rem 1.5rem;
-        font-size: 1.1rem;
-        cursor: pointer;
-    }
-    .hero-btn:hover {
-        background-color: #008BC3;
-    }
-    .title {
-        font-size: 2rem;
-        color: #003B70;
-        font-weight: bold;
-        text-align: center;
-        margin-bottom: 1rem;
-    }
+    /* زر hero-btn تم حذفه من الكود HTML */
     .description {
         font-size: 1.2rem;
         color: #444;
@@ -163,11 +144,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+# نوع الامتحان مع ملفات بنك الأسئلة داخل مجلد QBank
 exam_files = {
-    "تحصيلي كيمياء": "QBank/Chem_questions.json",
-    "تحصيلي فيزياء": "QBank/Phys_questions.json",
-    "تحصيلي رياضيات": "QBank/Math_questions.json",
-    "تحصيلي احياء": "QBank/Bio_questions.json"
+    "التحصيلي": "QBank/Tahsail.json",
+    "القدرات": "QBank/Qodrat.json"
 }
 
 def load_questions(json_file):
@@ -175,8 +155,11 @@ def load_questions(json_file):
         data = json.load(f)
     return data["questions"]
 
-def get_analysis(mistake_responses):
-    prompt = "حلل الأسئلة التالية التي تمت الإجابة عليها بشكل خاطئ لتحديد نقاط الضعف، واقترح الدورات المناسبة مع خطة دراسية.\n"
+# التحليل عبر OpenAI API
+import openai
+
+def get_analysis_online(mistake_responses):
+    prompt = "حلل الردود التالية التي تمت الإجابة عليها بشكل خاطئ لتحديد نقاط الضعف حاول يكون التحليل مختصر ومركز ويتم تعريف الطالب بالضعف في اي مجال (الرياضيات، الاحياء، الكيمياء، الفيزياء)  بدون تحليل كل سؤال على حده، وانصح الطالب الالتحاق بالدوات في اكاديمية طريق العلم.\n"
     for item in mistake_responses:
         prompt += (
             f"\nالسؤال: {item['question']}\n"
@@ -185,20 +168,22 @@ def get_analysis(mistake_responses):
         )
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4o-mini",  # استبدل بنموذج OpenAI المناسب إذا لزم الأمر
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "أنت مساعد مفيد."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.7,
-            max_tokens=500,
+            max_tokens=1000,
         )
-        answer = response.choices[0].message['content'].strip()
+        return response.choices[0].message['content'].strip()
     except Exception as e:
-        answer = f"حدث خطأ في الاتصال بواجهة OpenAI: {e}"
-    return answer
+        return f"حدث خطأ في الاتصال بواجهة OpenAI: {e}"
 
-# تهيئة المتغيرات في st.session_state
+def get_analysis(mistake_responses):
+    return get_analysis_online(mistake_responses)
+
+# تهيئة متغيرات الحالة
 if "intro_shown" not in st.session_state:
     st.session_state.intro_shown = False
 if "selected_exam" not in st.session_state:
@@ -214,7 +199,7 @@ if "selected_answer" not in st.session_state:
 if "report_shown" not in st.session_state:
     st.session_state.report_shown = False
 
-# شريط علوي (Header)
+# ترويسة التطبيق
 st.markdown(
     """
     <div class="header">
@@ -233,27 +218,29 @@ if not st.session_state.intro_shown:
             <div class='hero-content'>
                 <div class='hero-title'>مرحباً بكم في الاختبار الذكي!</div>
                 <div class='hero-text'>
-                    في هذا الاختبار ستتحدى معلوماتك عبر اختيار الامتحان الذي ترغب به (تحصيلي كيمياء، فيزياء، رياضيات، أو احياء).<br>
-                    بعد انتهاء الاختبار ستحصل على تقرير تحليلي بإستخدام الذكاء الاصطناعي واستبيان لتقييم تجربتك.<br>
-                    استعد للتحدي واستمتع بتجربة تعليمية ممتعة!
+                    اختر نوع الامتحان الذي ترغب به من بين خيارين:<br>
+                    <strong>التحصيلي</strong> أو <strong>القدرات</strong>.<br>
+                    سيتم اختيار 10 أسئلة عشوائيًا من بنك الأسئلة المناسب.<br>
+                    بعد انتهاء الاختبار ستحصل على تقرير تحليلي واستبيان لتقييم تجربتك.
                 </div>
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+    # زر واحد فقط (حذفنا الزر الأول من HTML)
     if st.button("ابدأ الآن"):
         st.session_state.intro_shown = True
         st.experimental_rerun()
 else:
-    # الخطوة 1: اختيار الامتحان
+    # الخطوة 1: اختيار نوع الامتحان
     if st.session_state.selected_exam == "":
         exam_choice = st.selectbox("اختر الامتحان", list(exam_files.keys()))
         if st.button("ابدأ الامتحان"):
             st.session_state.selected_exam = exam_choice
             all_questions = load_questions(exam_files[st.session_state.selected_exam])
             if len(all_questions) >= 10:
-                st.session_state.quiz_questions = random.sample(all_questions, 10)
+                st.session_state.quiz_questions = random.sample(all_questions, 20)
             else:
                 st.session_state.quiz_questions = all_questions
             st.experimental_rerun()
@@ -271,7 +258,6 @@ else:
             st.write(current_question["question"])
             
             st.write("اختر الإجابة:")
-            # استخدام enumerate لتفادي تكرار المفاتيح
             for idx, option in enumerate(current_question["options"]):
                 if st.button(option, key=f"option_{current_index}_{idx}"):
                     st.session_state.selected_answer = option
@@ -294,7 +280,7 @@ else:
         else:
             st.success("اكتمل الاختبار!")
             if st.button("عرض التقرير"):
-                # جمع الأسئلة الخاطئة فقط
+                # جمع الأسئلة التي تمت الإجابة عليها بشكل خاطئ فقط
                 mistakes = []
                 for q in st.session_state.quiz_questions:
                     if q["id"] in st.session_state.user_answers:
@@ -315,7 +301,7 @@ else:
                 st.session_state.report_shown = True
             
             if st.session_state.report_shown:
-                # st.markdown("<div class='feedback-container'>", unsafe_allow_html=True)
+                st.markdown("<div class='feedback-container'>", unsafe_allow_html=True)
                 st.header("استبيان التغذية الراجعة")
                 survey_options = ["أوافق بشدة", "موافق", "محايد", "لا أوافق", "لا أوافق أبداً"]
                 s1 = st.radio("1. هل وجدت الاختبار مفيداً؟", options=survey_options, key="survey_q1")
@@ -325,8 +311,14 @@ else:
                 
                 if st.button("إرسال التغذية الراجعة", key="submit_feedback"):
                     st.success("شكراً لتعليقاتك!")
+                # طلب الإيميل لحفظه وإرسال الروابط
+                user_email = st.text_input("أدخل بريدك الإلكتروني للحصول على روابط الدورات المقترحة والمذكرات وكوبون الخصم", key="user_email")
+                if st.button("حفظ البريد الإلكتروني"):
+                    # هنا يمكنك إضافة منطق إرسال الإيميل أو حفظه في قاعدة بيانات
+                    st.success(f"تم حفظ بريدك الإلكتروني: {user_email}")
+                    st.session_state.email_saved = True
                 
                 if st.button("إعادة الاختبار"):
                     st.session_state.clear()
                     st.experimental_rerun()
-                # st.markdown("</div>", unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
