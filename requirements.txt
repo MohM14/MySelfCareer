@@ -18,3 +18,4 @@ openai==0.28
 audio-recorder-streamlit
 openpyxl
 transformers 
+tensorflow
