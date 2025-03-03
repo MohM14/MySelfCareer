@@ -19,3 +19,4 @@ audio-recorder-streamlit
 openpyxl
 transformers 
 tensorflow
+tf-keras
